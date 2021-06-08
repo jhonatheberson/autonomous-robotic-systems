@@ -1,0 +1,9 @@
+if (sim_call_type==sim.syscb_init) then
+	motorLeft=sim.getObjectHandle("Motor_Esquerdo")
+	motorRight=sim.getObjectHandle("Motor_Direito")
+end
+
+if (sim_call_type==sim.syscb_actuation) then
+	sim.setJointTargetVelocity(motorLeft,2)
+	sim.setJointTargetVelocity(motorRight,4)
+end
