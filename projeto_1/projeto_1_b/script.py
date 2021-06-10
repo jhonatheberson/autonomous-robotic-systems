@@ -10,10 +10,51 @@
 # should be a corresponding call to simxFinish at the end!
 import math
 import numpy as np
-point_init = (0,0, 0)
-point_end = (10,10, 45)
+point_init = (-0.0000,-0.0000, 0.1000)
+point_end = (1.5250, -1.4750, 0.1000)
 
 
+
+
+try:
+    import sim
+except:
+    print ('--------------------------------------------------------------')
+    print ('"sim.py" could not be imported. This means very probably that')
+    print ('either "sim.py" or the remoteApi library could not be found.')
+    print ('Make sure both are in the same folder as this file,')
+    print ('or appropriately adjust the file "sim.py"')
+    print ('--------------------------------------------------------------')
+    print ('')
+
+import time
+import ctypes
+
+
+#transform from image frame to vrep frame
+def transform_points_from_image2real (points):
+    if points.ndim < 2:
+        flipped = np.flipud(points)
+    else:
+        flipped = np.fliplr(points)
+    scale = 5/445
+    points2send = (flipped*-scale) + np.array([2.0555+0.75280899, -2.0500+4.96629213])
+    return points2send
+
+def send_path_4_drawing(path, sleep_time = 0.07):
+    #the bigger the sleep time the more accurate the points are placed but you have to be very patient :D
+    for i in path:
+        #point2send = transform_points_from_image2real(i)
+        #print(point2send)
+        #print(type(point2send))
+        packedData=sim.simxPackFloats(i.flatten())
+        print(packedData)
+        print(type(packedData))
+        raw_bytes = (ctypes.c_ubyte * len(packedData)).from_buffer_copy(packedData)
+        print(raw_bytes)
+        print(type(raw_bytes))
+        returnCode=sim.simxWriteStringStream(clientID, "path_coord", raw_bytes, sim.simx_opmode_oneshot)
+        time.sleep(sleep_time)
 
 
 def polinomio(point_init, point_end):
@@ -70,26 +111,23 @@ def polinomio(point_init, point_end):
     result = []
     x  = np.arange(0,1,0.01)
     for i in range(len(x)):
-        fx = a0 + a1*x[i] + a2*x[i]^2 + a3*x[i]^3
-        fy = b0 + b1*x[i] + b2*x[i]^2 + b3*x[i]^3
-        theta_final = math.atan(fy/fx)
-        result.append((fx, fy, theta_final))
+        fx = a0 + a1*x[i] + a2*x[i]**2 + a3*x[i]**3
+        fy = b0 + b1*x[i] + b2*x[i]**2 + b3*x[i]**3
+        if fx == 0.0 and fy == 0.0:
+            #re = (fx, fy, np.arctan(0))
+            #re = (fx, fy)
+            re = np.array((fx, fy, np.arctan(0)))
+            
+        else:
+            #re = (fx, fy, np.arctan(float(fy/fx)))
+            #re = (fx, fy)
+            re = np.array((fx, fy, np.arctan(float(fy/fx))))
+        #print(re)
+        #print('arc: ',np.arctan(0.9714243279370267))
+        result.append(re)
+                      
     return result
 
-try:
-    import sim
-except:
-    print ('--------------------------------------------------------------')
-    print ('"sim.py" could not be imported. This means very probably that')
-    print ('either "sim.py" or the remoteApi library could not be found.')
-    print ('Make sure both are in the same folder as this file,')
-    print ('or appropriately adjust the file "sim.py"')
-    print ('--------------------------------------------------------------')
-    print ('')
-
-import time
-
-sim.path
 print ('Program started')
 sim.simxFinish(-1) # just in case, close all opened connections
 clientID=sim.simxStart('127.0.0.1',19999,True,True,5000,5) # Connect to CoppeliaSim
@@ -106,7 +144,9 @@ if clientID!=-1:
     time.sleep(2)
 
     caminho = polinomio(point_init,point_end)
+    send_path_4_drawing(caminho, 0.05)
 
+    
 
     # Now retrieve streaming data (i.e. in a non-blocking fashion):
     startTime=time.time()
