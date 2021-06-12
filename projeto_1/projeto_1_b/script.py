@@ -116,13 +116,15 @@ def polinomio(point_init, point_end):
         if fx == 0.0 and fy == 0.0:
             #re = (fx, fy, np.arctan(0))
             #re = (fx, fy)
-            re = np.array((fx, fy, np.arctan(0)))
+            re = np.array((fx, fy, 0))
             
         else:
             #re = (fx, fy, np.arctan(float(fy/fx)))
             #re = (fx, fy)
-            re = np.array((fx, fy, np.arctan(float(fy/fx))))
-        #print(re)
+            #re = np.array((fx, fy, np.arctan(0)))
+            re = np.array((fx, fy, 0))
+            #re = np.array((fx, fy, np.arctan(float(fy/fx))))
+        print(re)
         #print('arc: ',np.arctan(0.9714243279370267))
         result.append(re)
                       
