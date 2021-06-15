@@ -10,8 +10,8 @@
 # should be a corresponding call to simxFinish at the end!
 import math
 import numpy as np
-point_init = (-0.0000,-0.0000, 0.1000)
-point_end = (1.5250, -1.4750, 0.1000)
+point_init = (-0.0000,-0.0000, 0.0000)
+point_end = (1.5750, 1.1250, 0.0000)
 
 
 
@@ -155,8 +155,8 @@ if clientID!=-1:
     err_code,l_motor_handle = sim.simxGetObjectHandle(clientID,"Motor_Direito", sim.simx_opmode_blocking)
     err_code,r_motor_handle = sim.simxGetObjectHandle(clientID,"Motor_Esquerdo", sim.simx_opmode_blocking)
 
-    err_code = sim.simxSetJointTargetVelocity(clientID,l_motor_handle,1.0,sim.simx_opmode_streaming)
-    err_code = sim.simxSetJointTargetVelocity(clientID,r_motor_handle,2.0,sim.simx_opmode_streaming)
+    err_code = sim.simxSetJointTargetVelocity(clientID,l_motor_handle,0.0,sim.simx_opmode_streaming)
+    err_code = sim.simxSetJointTargetVelocity(clientID,r_motor_handle,0.0,sim.simx_opmode_streaming)
 
 
     sim.simxGetIntegerParameter(clientID,sim.sim_intparam_mouse_x,sim.simx_opmode_streaming) # Initialize streaming
