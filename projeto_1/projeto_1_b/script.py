@@ -11,7 +11,8 @@
 import math
 import numpy as np
 point_init = (-0.0000,-0.0000, 0.0000)
-point_end = (1.5250e+00, 1.8000e+00, 0.0000)
+point_end = (+1.5250e+00, -1.4750e+00, +5.0000e-02)
+#point_end = (1.5250e+00, 1.8000e+00, 0.0000)
 
 
 
@@ -176,171 +177,6 @@ def coeficientes (origem,destino):
                       
     return (a,b)
 
-#transform from vrep frame to robot frame
-#def transform2robot_frame(pos, point, theta):
-    #pos = np.asarray(pos)
-    #point = np.asarray(point)
-    #T_matrix = np.array([[np.sin(theta), np.cos(theta)],[np.cos(theta), -1*np.sin(theta)],])
-    #trans = point-pos
-    #if trans.ndim >= 2:
-        #trans = trans.T
-        #point_t = np.dot(T_matrix, trans).T
-    #else:
-        #point_t = np
-    #return point_t
-
-#Robot model
-d = 0.21 #wheel axis distance
-r_w = 0.0625 #wheel radius
-
-
-def seguidor_caminho():
-    
-    #Fazendo os handles
-    err_code,motor_direito = sim.simxGetObjectHandle(clientID,"Motor_Direito", sim.simx_opmode_blocking)
-    err_code,motor_esquerdo = sim.simxGetObjectHandle(clientID,"Motor_Esquerdo", sim.simx_opmode_blocking)
-    err_code,carro = sim.simxGetObjectHandle(clientID,"Carro", sim.simx_opmode_blocking)
-    
-    #Zerando as velocidades das rodas
-    err_code = sim.simxSetJointTargetVelocity(clientID,motor_direito,0,sim.simx_opmode_streaming)
-    err_code = sim.simxSetJointTargetVelocity(clientID,motor_esquerdo,0,sim.simx_opmode_streaming)
-    
-    #Posicao e orientacao do robo
-    err_code,posicao_robo = sim.simxGetObjectPosition(clientID,carro,-1, sim.simx_opmode_blocking)
-    er_code,orientacao_robo = sim.simxGetObjectOrientation(clientID,carro,-1,sim.simx_opmode_streaming)
-    
-    #Ganhos do controlador
-    k_theta = 0.6
-    k_l = 0.1
-
-    #Polinomio interpolador no matlab
-    #[X, Y, Theta, a, b, Mat] = poli_cubic([-2,-2,0],[2,2,45],0.01)
-    
-    #parametros do robo
-    v = 0.5
-    d = 0.21 #distancia do eixo entre as rodas
-    rd = 0.0625 #raio roda direita
-    re = 0.0625 #raio roda esquerda
-
-    caminho,orientacao = polinomio(point_init, point_end)
-
-    k = 0
-    z = np.arange(0,1,0.01) 
-    for k in range(len(z)): #Enquanto o robo se movimenta
-        #pegar posicao e orientacao do robo sempre atualizando
-        err_code,posicao_robo = sim.simxGetObjectPosition(clientID,carro,-1, sim.simx_opmode_blocking)
-        err_code,orientacao_robo = sim.simxGetObjectOrientation(clientID,carro,-1,sim.simx_opmode_streaming)
-
-        #calculo da menor distância do robô a curva
-        #[ponto_curva, Delta_l, lbda] = distance2curve(Mat(:,1:2),[posicao_robo(1),posicao_robo(2)],'linear');
-
-        #ponto da curva
-        distancia = []
-        #j = 0
-        #for j in range(len(caminho[0])):
-        for i in caminho:
-            distancia.append(np.sqrt(pow((posicao_robo[0] - i[0]),2) + pow((posicao_robo[1] - i[1]),2)))
-                #if j == 0:
-                    #ponto_curva = caminho [j]
-                #elif distancia[j]<distancia[j-1]:
-                    #ponto_curva = caminho[j]
-        print ('distancia min:', np.min(distancia))
-        ponto_curva_x = np.min(distancia) + posicao_robo[0]
-        ponto_curva_y = np.min(distancia) + posicao_robo[1]
-        ponto_curva = (ponto_curva_x,ponto_curva_y)
-
-        #raio de giro
-        a,b = coeficientes(point_init,point_end)
-        dx = a[1] +2*a[2]*k + 3*a[3]*(k**2)
-        dy = b[1] + 2*b[2]*k + 3*b[3]*(k**2)
-        d2x = 2*a[2] + 6*a[3]*k
-        d2y = 2*b[2] + 6*b[3]*k
-        r = ((((pow(dx,2)))+(pow((pow(dy,2)),(1.5))))/((d2y*dx)-(d2x*dy)))             
-        k = (1/r)
-
-        orientation = np.arctan((b[1] + 2*b[2]*k + 3*b[3]*((pow(k,2))))/(a[1] + 2*a[2]*k + 3*a[3]*(pow(k,2))))
-
-        #delta theta
-        print ('orientacao robo:',orientacao_robo)
-        Theta_robo = orientacao_robo[2] #+ math.pi/2  
-        theta_SF = orientation
-        Delta_theta = Theta_robo - theta_SF
-
-        #delta_l é a distancia
-        Delta_l = np.min(distancia)
-
-        #Garantir o sinal correto de Delta L 
-        theta_posicao_robo = np.arctan2(posicao_robo[1],posicao_robo[0]); #angulo de posicao do robo
-        theta_ref = np.arctan2(ponto_curva[1],ponto_curva[0]); #angulo da curva que está mais próxima ao robo
-         
-        if(theta_ref>theta_posicao_robo): #Sinal do delta L
-            Delta_l = -Delta_l
-
-        #Controle
-        u = -(k_theta*Delta_theta + (k_l*Delta_l*v*np.sin(Delta_theta)/Delta_theta))
-         
-        #Velocidade Angular
-        w = u + ((k*v*np.cos(Delta_theta))/(1-(k*Delta_l)))
-         
-        #Velocidade das juntas
-        wd = (v/rd) + (d/(2*rd))*w
-        we = (v/re) - (d/(2*re))*w
-         
-        sim.simxSetJointTargetVelocity(clientID,motor_esquerdo,we,sim.simx_opmode_blocking)
-        sim.simxSetJointTargetVelocity(clientID,motor_direito,wd,sim.simx_opmode_blocking)
-
-        if k==1:           
-            returnCode=sim.simxSetJointTargetVelocity(clientID,motor_esquerdo,0,sim.simx_opmode_streaming)
-            returnCode=sim.simxSetJointTargetVelocity(clientID,motor_direito,0,sim.simx_opmode_streaming) 
-    #k += 0.01  
-
-    #Plot do erro Delta l
-    #figure(2)
-    #plot(ErroL)
-    #grid on;
-    #ylabel('Delta L')
-    #xlabel('Interação')
-
-    returnCode=sim.simxSetJointTargetVelocity(clientID,motor_esquerdo,0,sim.simx_opmode_streaming)
-    returnCode=sim.simxSetJointTargetVelocity(clientID,motor_direito,0,sim.simx_opmode_streaming)
-
-    sim.simxFinish(-1)
- 
-
-   
-    
-###########IAGO##################
-#def seguidor_trajetoria(objeto, caminho, posicao_atual):
-#        err_code,posicao_robo = sim.simxGetObjectHandle(clientID,"Origem", sim.simx_opmode_blocking)
- #       err_code,posicao_robo = sim.simxGetObjectPosition(clientID,posicao_robo,-1, sim.simx_opmode_blocking)
-  #      err_code,orientacao_robo = sim.simxGetObjectHandle(clientID,"GyroSensor", sim.simx_opmode_blocking)
-   #     err_code,orientacao_robo = sim.simxGetObjectOrientation(clientID,orientacao_robo,-1, sim.simx_opmode_blocking)
-    #    print ('Pocicao inicial:', posicao_robo)
-     #   print ('Orientacao inicial:', orientacao_robo)
-#
- #       while posicao_atual != destino_robo:
-  #          
-   #     err_code,posicao_robo = sim.simxGetObjectHandle(clientID,"Origem", sim.simx_opmode_blocking)
-    #    err_code,posicao_robo = sim.simxGetObjectPosition(clientID,posicao_robo,-1, sim.simx_opmode_blocking)
-     #   err_code,orientacao_robo = sim.simxGetObjectHandle(clientID,"GyroSensor", sim.simx_opmode_blocking)
-      #  err_code,orientacao_robo = sim.simxGetObjectOrientation(clientID,orientacao_robo,-1, sim.simx_opmode_blocking)
-       # print ('Pocicao inicial:', posicao_robo)
-        #print ('Orientacao inicial:', orientacao_robo)
-
-    
-  #  return 0
-
-#################################
-#def controlador_posicao(coordenadas, orientacao):
-    #kr = kdelta = ksigma = 1
-    #R = (coordenadas[0]**2+coordenadas[1]**2)**(1/2)
-    #delta = np.arctan((coordenadas[1]/coordenadas[0]))
-    #sigma = delta + orientacao
-    #v = Kr*R*math.cos(delta)
-    #w = kdelta*delta + (kr*(delta + ksigma*sigma)*(math.sen(delta)*math.cos(delta)))/delta
-    #return v,w
-
-
 print ('Program started')
 sim.simxFinish(-1) # just in case, close all opened connections
 clientID=sim.simxStart('127.0.0.1',19999,True,True,5000,5) # Connect to CoppeliaSim
@@ -359,27 +195,6 @@ if clientID!=-1:
 
     
 
-    # Now retrieve streaming data (i.e. in a non-blocking fashion):
-    #startTime=time.time()
-    #err_code,l_motor_handle = sim.simxGetObjectHandle(clientID,"Motor_Direito", sim.simx_opmode_blocking)
-    #err_code,r_motor_handle = sim.simxGetObjectHandle(clientID,"Motor_Esquerdo", sim.simx_opmode_blocking)
-
-    #err_code = sim.simxSetJointTargetVelocity(clientID,l_motor_handle,0.0,sim.simx_opmode_streaming)
-    #err_code = sim.simxSetJointTargetVelocity(clientID,r_motor_handle,0.0,sim.simx_opmode_streaming)
-
-    #err_code,posicao_robo = sim.simxGetObjectHandle(clientID,"Origem", sim.simx_opmode_blocking)
-    #err_code,posicao_robo = sim.simxGetObjectPosition(clientID,posicao_robo,-1, sim.simx_opmode_blocking)
-    #err_code,destino_robo = sim.simxGetObjectHandle(clientID,"Destino", sim.simx_opmode_blocking)
-    #err_code,destino_robo = sim.simxGetObjectPosition(clientID,destino_robo,-1, sim.simx_opmode_blocking)
-    #err_code,orientacao_robo = sim.simxGetObjectHandle(clientID,"GyroSensor", sim.simx_opmode_blocking)
-    #err_code,orientacao_robo = sim.simxGetObjectOrientation(clientID,orientacao_robo,-1, sim.simx_opmode_blocking)
-    #print ('posicao robo:', posicao_robo)
-    #print ('Destino robo:',destino_robo)
-    #print ('orientação do robo:', orientacao_robo)
-
-
-    
-
     #############################
     #teste controle estabilizante
     caminho, orientation = polinomio(point_init,point_end)
@@ -388,24 +203,89 @@ if clientID!=-1:
 
     #teste controle estabilizante
     #############################
-
-    seguidor_caminho()
+    #Fazendo os handles
+    err_code,motor_direito = sim.simxGetObjectHandle(clientID,"Motor_Direito", sim.simx_opmode_blocking)
+    err_code,motor_esquerdo = sim.simxGetObjectHandle(clientID,"Motor_Esquerdo", sim.simx_opmode_blocking)
+    err_code,carro = sim.simxGetObjectHandle(clientID,"Carro", sim.simx_opmode_blocking)
     
+    #Zerando as velocidades das rodas
+    err_code = sim.simxSetJointTargetVelocity(clientID,motor_direito,0,sim.simx_opmode_streaming)
+    err_code = sim.simxSetJointTargetVelocity(clientID,motor_esquerdo,0,sim.simx_opmode_streaming)
+    
+    #Posicao e orientacao do robo
+    err_code,posicao_robo = sim.simxGetObjectPosition(clientID,carro,-1, sim.simx_opmode_blocking)
+    er_code,orientacao_robo = sim.simxGetObjectOrientation(clientID,carro,-1,sim.simx_opmode_streaming)
+    
+    #Ganhos do controlador
+    k_theta = 2.0
+    k_l = 0.1
+    
+    
+    #parametros do robo
+    i = 1
+    v = 0.5
+    d = 0.21 #distancia do eixo entre as rodas
+    rd = 0.0625 #raio roda direita
+    re = 0.0625 #raio roda esquerda
+
+    caminho,orientacao = polinomio(point_init, point_end)
+    lamb = 0
+    while True:
+      #Posicao e orientacao do robo
+      err_code,posicao_robo = sim.simxGetObjectPosition(clientID,carro,-1, sim.simx_opmode_blocking)
+      er_code,orientacao_robo = sim.simxGetObjectOrientation(clientID,carro,-1,sim.simx_opmode_streaming)
+      
+      theta_robo = orientacao_robo[2] + math.pi/2
+      
+      #raio de giro
+      a,b = coeficientes(point_init,point_end)
+      dx = a[1] +2*a[2]*lamb + 3*a[3]*(lamb**2)
+      dy = b[1] + 2*b[2]*lamb + 3*b[3]*(lamb**2)
+      d2x = 2*a[2] + 6*a[3]*lamb
+      d2y = 2*b[2] + 6*b[3]*lamb
+      r = ((((dx**2)+(dy**2))**1.5)/((d2y*dx)-(d2x*dy)))             
+      k = (1/r)
+      
+      #delta theta
+      theta_SF = math.atan((b[1] + 2*b[2]*lamb + 3*b[3]*lamb**2)/(a[1] + 2*a[2]*lamb + 3*a[3]*lamb**2))
+      Delta_theta = theta_robo - theta_SF
+      
+      #garantir o sinal correto de delta L
+      theta_posicao_robo = math.atan2(posicao_robo[1],posicao_robo[0])
+      delta_L = np.linalg.norm(posicao_robo-caminho[0])
+      ponto_curva = caminho[0]
+      for i in range(len(caminho)-1):
+        distance = np.linalg.norm(posicao_robo-caminho[i+1])
+        if(delta_L > distance):
+          delta_L = distance
+          ponto_curva = caminho[i+1]
+      theta_ref = math.atan2(ponto_curva[1],ponto_curva[0])
+      
+      if (theta_ref > theta_posicao_robo):
+        delta_L = -delta_L
+        
+      i = i +1
+      
+      u = -(k_theta*Delta_theta + (k_l*delta_L*v*math.sin(Delta_theta)/Delta_theta))
+      
+      w = u + ((k*v*math.cos(Delta_theta))/(1-(k*delta_L)))
+      
+      wd = (v/rd) + (d/(2*rd))*w
+      we = (v/re) - (d/(2*re))*w
+      
+      err_code = sim.simxSetJointTargetVelocity(clientID,motor_direito,wd,sim.simx_opmode_streaming)
+      err_code = sim.simxSetJointTargetVelocity(clientID,motor_esquerdo,we,sim.simx_opmode_streaming)
+      print('lamb :', lamb)
+      if (lamb >= 1):
+        err_code = sim.simxSetJointTargetVelocity(clientID,motor_direito,0.0,sim.simx_opmode_streaming)
+        err_code = sim.simxSetJointTargetVelocity(clientID,motor_esquerdo,0.0,sim.simx_opmode_streaming)
+        break
+      
+      lamb = lamb + 0.01
+    
+    err_code = sim.simxSetJointTargetVelocity(clientID,motor_direito,0.0,sim.simx_opmode_streaming)
+    err_code = sim.simxSetJointTargetVelocity(clientID,motor_esquerdo,0.0,sim.simx_opmode_streaming)
     print ('Finalizado seguidor de caminho')
-
-
-    #sim.simxGetIntegerParameter(clientID,sim.sim_intparam_mouse_x,sim.simx_opmode_streaming) # Initialize streaming
-    # while time.time()-startTime < 5:
-    #     returnCode,data=sim.simxGetIntegerParameter(clientID,sim.sim_intparam_mouse_x,sim.simx_opmode_buffer) # Try to retrieve the streamed data
-    #     if returnCode==sim.simx_return_ok: # After initialization of streaming, it will take a few ms before the first value arrives, so check the return code
-    #         print ('Mouse position x: ',data) # Mouse position x is actualized when the cursor is over CoppeliaSim's window
-    #     time.sleep(0.005)
-
-    # Now send some data to CoppeliaSim in a non-blocking fashion:
-    #sim.simxAddStatusbarMessage(clientID,'Hello CoppeliaSim!',sim.simx_opmode_oneshot)
-
-    # Before closing the connection to CoppeliaSim, make sure that the last command sent out had time to arrive. You can guarantee this with (for example):
-    #sim.simxGetPingTime(clientID)
 
     # Now close the connection to CoppeliaSim:
     sim.simxFinish(clientID)
