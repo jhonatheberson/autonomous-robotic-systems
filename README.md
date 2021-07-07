@@ -290,6 +290,6 @@ You are an awesome team! :)
 
 ## License
 
-This project is under the license [MIT][GIA](./LICENSE).
+This project is under the license [MIT](./LICENSE).
 
 ---
