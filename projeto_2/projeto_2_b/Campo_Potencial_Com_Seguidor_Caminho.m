@@ -144,15 +144,15 @@ path = [xp' yp'];
 robot = differentialDriveKinematics("TrackWidth", 1, "VehicleInputs", "VehicleSpeedHeadingRate");
 controller = controllerPurePursuit;
 controller.Waypoints = path;
-controller.DesiredLinearVelocity = 0.1;
-controller.MaxAngularVelocity = 1.0;
-controller.LookaheadDistance = 1.0;
+controller.DesiredLinearVelocity = 0.5;
+controller.MaxAngularVelocity = 2.0;
+controller.LookaheadDistance = 2.0;
 robotInitialLocation = path(1,:);
 robotGoal = path(end,:);
 initialOrientation = -90;
 robotCurrentPose = [robotInitialLocation initialOrientation]';
 distanceToGoal = norm(robotInitialLocation - robotGoal);
-goalRadius = 0.1;
+goalRadius = 0.5;
  rd = 0.06;
  re = 0.06;
  B = 0.13;
@@ -222,9 +222,9 @@ release(controller);
     plotRot = axang2quat([0 0 1 robotCurrentPose(3)]);
     plotTransforms(plotTrVec', plotRot, 'MeshFilePath', 'groundvehicle.stl', 'Parent', gca, "View","2D", "FrameSize", frameSize);
     light;
+    
     xlim([-5 5])
     ylim([-5 5])
-    
     waitfor(vizRate);
                     
  
